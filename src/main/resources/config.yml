@@ -1,0 +1,86 @@
+# ==============================================================================
+# A.T.L.A.S. - Admin Tool for Live Area Surveillance Configuration
+# ==============================================================================
+
+web:
+  # Host IP interface to bind to (0.0.0.0 binds to all available network adapters)
+  host: "0.0.0.0"
+  
+  # Dedicated HTTP port for static web dashboard and map tiles
+  http-port: 27994
+  
+  # Dedicated WebSocket port for real-time telemetry, commands, and voice audio.
+  # DEFAULT: 27994 (unified single-port multiplexing with http-port).
+  # IMPORTANT: Do NOT set this to Simple Voice Chat's UDP voice port (e.g. 27995 or 24454)!
+  # By keeping websocket-port identical to http-port (27994), ATLAS automatically multiplexes
+  # HTTP and WebSockets on port 27994, leaving port 27995 completely dedicated to Simple Voice Chat.
+  websocket-port: 27994
+  
+  # External public URL override (leave empty for automatic detection)
+  public-url: ""
+  
+  # Secure Context & TLS/SSL Configuration
+  # Note: Web Audio API (AudioWorklet) requires a Secure Context (HTTPS/WSS or localhost)
+  ssl:
+    enabled: false
+    self-signed: true
+    keystore-path: "plugins/ATLAS/keystore.jks"
+    keystore-password: "atlas_secure_pass"
+    
+  # Inbound IP Rate Limiting (Token Bucket anti-DDoS / scan protection)
+  rate-limit:
+    enabled: true
+    burst-capacity: 60
+    refill-per-second: 5
+
+map:
+  # Primary world dimension to display on initial client connection
+  default-dimension: "minecraft:overworld"
+  
+  # In-memory LRU tile cache size (number of 256x256 tiles, ~128MB at 512)
+  max-memory-tiles: 512
+  
+  # Enable disk caching of generated PNG tiles under plugins/ATLAS/cache/tiles/
+  disk-cache-enabled: true
+  
+  # Strict I/O Concurrency Limiter: Maximum concurrent Anvil .mca chunk read operations
+  # Prevents disk thread saturation when multiple admins pan across unloaded terrain
+  max-concurrent-chunk-reads: 4
+  
+  # Bounding Box Boundary Limiter (prevents arbitrary out-of-world disk scanning)
+  bounding-box:
+    enabled: false
+    min-x: -10000
+    max-x: 10000
+    min-z: -10000
+    max-z: 10000
+    
+  # Enable asynchronous reading of unloaded chunks directly from .mca region files
+  render-unloaded-chunks: true
+  
+  # Topographical hillshading intensity (0.05 to 0.25)
+  hillshading-intensity: 0.12
+  
+  # Configure or override the default World Spawn coordinates.
+  # If enabled is true, ATLAS will enforce this world spawn on server startup
+  # and anchor the map / teleports to these exact coordinates.
+  world-spawn:
+    enabled: false
+    dimension: "minecraft:overworld"
+    x: 0
+    y: 64
+    z: 0
+
+telemetry:
+  # Telemetry broadcast frequency in Hertz (10 to 20 Hz recommended)
+  broadcast-frequency-hz: 15
+  
+  # Maximum player telemetry delta frames dispatched in a single batch
+  max-batch-size: 100
+
+voice:
+  # Enable Simple Voice Chat "Spyglass" proximity audio interception hook
+  enabled: true
+  
+  # Maximum allowed listening radius for spyglass surveillance sessions (blocks)
+  max-spyglass-radius: 100.0

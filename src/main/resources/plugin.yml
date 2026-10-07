@@ -1,0 +1,19 @@
+name: ATLAS
+version: '${project.version}'
+main: net.atlas.AtlasPlugin
+api-version: '1.21'
+author: Antigravity
+description: Admin Tool for Live Area Surveillance - Self-Contained Server Monitoring & Moderation Suite
+softdepend:
+  - voicechat
+commands:
+  atlas:
+    description: Master command for ATLAS surveillance administration
+    permission: atlas.admin
+    usage: /atlas <link|unlink|reload|status>
+    aliases:
+      - at
+permissions:
+  atlas.admin:
+    description: Grants administrative access to generate ATLAS dashboard links and execute moderation actions
+    default: op

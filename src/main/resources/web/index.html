@@ -1,0 +1,804 @@
+<!-- src/main/resources/web/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.T.L.A.S. - Admin Tool for Live Area Surveillance</title>
+    <script>
+        // Automatic Secure Context Normalization:
+        // Browsers treat 'localhost' as a native Secure Context (clearing "Not Secure" and enabling Web Audio),
+        // but flag raw numeric '127.0.0.1' or '[::1]' as insecure. Normalize immediately using replace()
+        // so history isn't polluted and port, path, tokens, and hash are cleanly preserved.
+        if (window.location.hostname === "127.0.0.1" || window.location.hostname === "[::1]") {
+            var _p = window.location.port ? ":" + window.location.port : "";
+            window.location.replace(window.location.protocol + "//localhost" + _p + window.location.pathname + window.location.search + window.location.hash);
+        }
+    </script>
+    <link rel="stylesheet" href="/css/leaflet.css?v=1.0.5">
+    <link rel="stylesheet" href="/css/atlas.css?v=1.0.5">
+    <link rel="stylesheet" href="/css/telemetry.css?v=1.0.5">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <div id="app" class="atlas-container">
+        <!-- Top Navigation Bar -->
+        <header class="atlas-header">
+            <div class="brand">
+                <span class="logo-badge">ATLAS</span>
+                <span class="logo-text">SURVEILLANCE</span>
+                <span class="badge-status" id="connection-status">DISCONNECTED</span>
+                <button class="badge-security" id="security-status" type="button" title="Click to inspect security context & protocols">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span id="security-status-text">INITIALIZING</span>
+                </button>
+            </div>
+
+            <div class="dimension-selector">
+                <button class="dim-btn active" data-dim="minecraft:overworld" data-dim-name="Overworld" data-tooltip="Overworld Dimension" aria-label="Overworld Dimension">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                </button>
+                <button class="dim-btn" data-dim="minecraft:the_nether" data-dim-name="Nether" data-tooltip="The Nether Dimension" aria-label="Nether Dimension">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 3z"></path>
+                    </svg>
+                </button>
+                <button class="dim-btn" data-dim="minecraft:the_end" data-dim-name="The End" data-tooltip="The End Dimension" aria-label="The End Dimension">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="header-seed-cluster">
+                <div class="header-seed-badge" id="seed-badge-container" data-tooltip="Click to copy World Seed" title="Click to copy World Seed">
+                    <span class="seed-label">SEED</span>
+                    <span class="seed-val" id="hud-seed-val">DETECTING</span>
+                    <span class="version-tag" id="hud-version-val">JAVA</span>
+                </div>
+            </div>
+
+            <div class="header-metrics">
+                <div class="metric-item">
+                    <span class="metric-label">ONLINE</span>
+                    <span class="metric-value" id="stat-online-count">0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">TPS</span>
+                    <span class="metric-value text-green" id="stat-tps">20.0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">VOICE</span>
+                    <span class="metric-value" id="stat-voice-status">OFF</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">PING</span>
+                    <span class="metric-value text-orange" id="stat-ping">-- ms</span>
+                </div>
+
+                <!-- Tactical Header Action Buttons -->
+                <div class="header-actions">
+                    <button id="btn-voice-broadcast" class="btn-broadcast" data-tooltip="Live Voice Broadcast to Server" title="Live Voice Broadcast to Server" aria-label="Voice Broadcast">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                        <span>BROADCAST</span>
+                    </button>
+
+                    <button id="btn-voice-area" class="btn-broadcast btn-area-voice" data-tooltip="Talk to Area (Proximity 50m around center)" title="Talk to Area" aria-label="Talk to Area">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <circle cx="12" cy="12" r="10" stroke-dasharray="2 2"></circle>
+                        </svg>
+                        <span>AREA</span>
+                    </button>
+
+                    <button id="btn-toggle-spyglass" class="btn-spyglass" data-tooltip="Audio Monitor (Click map to place radar)" title="Audio Monitor (Click map to place radar)" aria-label="Audio Monitor">
+                        <svg class="spyglass-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 3l-6 6"/>
+                            <path d="M21 7l-2-2"/>
+                            <path d="M18 6l-6 6 2 2 6-6"/>
+                            <path d="M13 11l-4 4 1.5 1.5 4-4"/>
+                            <path d="M9.5 14.5l-3 3 1 1 3-3"/>
+                            <path d="M7 17l-3.5 3.5a1 1 0 0 1-1.4-1.4L5.6 15.6"/>
+                        </svg>
+                    </button>
+
+                    <button id="btn-toggle-chat-feed" class="btn-header-action" data-tooltip="Surveillance Chat Feed" title="Surveillance Chat Feed" aria-label="Chat Feed">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        <span id="badge-chat-unread" class="badge-unread hidden">0</span>
+                    </button>
+
+                    <button id="btn-toggle-terminal" class="btn-header-action" data-tooltip="Server Command Terminal" title="Server Command Terminal" aria-label="Terminal">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" y1="19" x2="20" y2="19"></line>
+                        </svg>
+                    </button>
+
+                    <button id="btn-open-settings" class="btn-header-action" data-tooltip="System Settings" title="System Settings" aria-label="Settings">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Body -->
+        <main class="atlas-main">
+            <!-- Left Surveillance Sidebar -->
+            <aside class="atlas-sidebar">
+                <div class="sidebar-tabs">
+                    <button class="tab-btn active" data-tab="online" data-tooltip="Active Online Players">Online (<span id="tab-online-count">0</span>)</button>
+                    <button class="tab-btn" data-tab="offline" data-tooltip="All Known Offline Players">Offline (<span id="tab-offline-count">0</span>)</button>
+                    <button class="tab-btn" data-tab="actions" data-tooltip="Atomic Queued Modifications">Pending Queue (<span id="tab-actions-count">0</span>)</button>
+                </div>
+
+                <!-- Tab 1: Online Player List -->
+                <div class="tab-content active" id="pane-online">
+                    <div class="search-box">
+                        <input type="text" id="search-online-players" placeholder="Filter active players...">
+                    </div>
+                    <ul class="player-roster" id="roster-online">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+                <!-- Tab 2: Offline Player Roster -->
+                <div class="tab-content" id="pane-offline">
+                    <div class="search-box">
+                        <input type="text" id="search-offline-players" placeholder="Filter or search player...">
+                        <button id="btn-search-offline" class="btn-sm btn-primary" data-tooltip="Search Offline Database" aria-label="Search Offline Database">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <ul class="player-roster" id="roster-offline">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+                <!-- Tab 3: Action Ledger Queue -->
+                <div class="tab-content" id="pane-actions">
+                    <div class="action-header">
+                        <h4>Atomic Pending Ledger</h4>
+                    </div>
+                    <ul class="pending-list" id="ledger-action-list">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+                <div class="sidebar-footer">
+                    <a href="/privacy.html" target="_blank" class="footer-link">Privacy Policy</a>
+                    <span class="sep">|</span>
+                    <a href="/terms.html" target="_blank" class="footer-link">Terms</a>
+                </div>
+            </aside>
+
+            <!-- Center Slippy Map Viewport -->
+            <section class="atlas-viewport">
+                <div id="map" class="map-surface"></div>
+
+                <!-- Floating Coordinate Search Bar -->
+                <div class="coord-search-bar" id="coord-search-bar">
+                    <div class="coord-search-inner">
+                        <svg class="coord-search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="input-coord-search" placeholder="Search coords (e.g. 100, -250)..." autocomplete="off" spellcheck="false" data-tooltip="Enter coordinates (e.g. 100 -250, /tp x y z, or spawn)">
+                        <button id="btn-coord-clear" class="btn-coord-clear" data-tooltip="Clear Coordinates" aria-label="Clear Search" style="display: none;">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                        <button id="btn-coord-go" class="btn-coord-go" data-tooltip="Jump to Coordinates (Enter)" aria-label="Jump to Coordinates">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Floating HUD Map Controls -->
+                <div class="map-controls-overlay">
+                    <button id="btn-map-zoom-in" class="map-ctrl-btn" data-tooltip="Zoom In (+)" aria-label="Zoom In">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                    <button id="btn-map-zoom-out" class="map-ctrl-btn" data-tooltip="Zoom Out (−)" aria-label="Zoom Out">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                    <button id="btn-map-focus" class="map-ctrl-btn" data-tooltip="Focus Player or Spawn (F)" aria-label="Focus Target">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="7"></circle>
+                            <line x1="12" y1="1" x2="12" y2="5"></line>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="1" y1="12" x2="5" y2="12"></line>
+                            <line x1="19" y1="12" x2="23" y2="12"></line>
+                        </svg>
+                    </button>
+                    <button id="btn-map-refresh" class="map-ctrl-btn" data-tooltip="Sync & Refresh Map (R)" aria-label="Sync Map">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                        </svg>
+                    </button>
+                    <button id="btn-toggle-offline" class="map-ctrl-btn active" data-tooltip="Toggle Offline Players (O)" aria-label="Toggle Offline Players">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </button>
+                    <button id="btn-toggle-measure" class="map-ctrl-btn" data-tooltip="Distance Measure Tool (M)" aria-label="Measure Distance">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 22l20-20"></path>
+                            <path d="M19 7l-2-2"></path>
+                            <path d="M15 11l-2-2"></path>
+                            <path d="M11 15l-2-2"></path>
+                            <path d="M7 19l-2-2"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div id="hud-measure-dist" class="hud-measure-banner hidden"></div>
+
+                <!-- Coordinates HUD -->
+                <div class="coordinates-hud">
+                    <span>X: <strong id="hud-coord-x">0</strong></span>
+                    <span>Y: <strong id="hud-coord-y">64</strong></span>
+                    <span>Z: <strong id="hud-coord-z">0</strong></span>
+                    <span class="hud-zoom"><strong id="hud-zoom">Zoom 0</strong></span>
+                </div>
+
+                <!-- Live Voice Transmission HUD -->
+                <div id="voice-transmit-hud" class="voice-transmit-hud hidden">
+                    <span class="transmit-live-tag">LIVE TX</span>
+                    <span id="transmit-target-label" class="transmit-info">BROADCAST: ALL ONLINE PLAYERS</span>
+                    <div class="vu-meter-container">
+                        <div id="transmit-vu-level" class="vu-meter-bar"></div>
+                    </div>
+                    <button id="btn-end-broadcast" class="btn-end-transmit">END</button>
+                </div>
+
+                <!-- Audio Monitor Active Surveillance Banner -->
+                <div id="spyglass-banner" class="spyglass-banner hidden">
+                    <div class="radar-pulse"></div>
+                    <svg class="spyglass-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 3l-6 6"/>
+                        <path d="M21 7l-2-2"/>
+                        <path d="M18 6l-6 6 2 2 6-6"/>
+                        <path d="M13 11l-4 4 1.5 1.5 4-4"/>
+                        <path d="M9.5 14.5l-3 3 1 1 3-3"/>
+                        <path d="M7 17l-3.5 3.5a1 1 0 0 1-1.4-1.4L5.6 15.6"/>
+                    </svg>
+                    <div class="spyglass-info">
+                        <strong>AUDIO MONITOR ACTIVE:</strong> Radius <span id="spyglass-rad">25</span>m at (<span id="spyglass-coords">0, 64, 0</span>)
+                    </div>
+                    <button id="btn-cancel-spyglass" class="btn-sm btn-danger" data-tooltip="Halt Audio Surveillance" aria-label="Halt Audio Surveillance">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="5" y="5" width="14" height="14"></rect>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Surveillance Chat Feed Drawer -->
+                <div id="surveillance-chat-drawer" class="surveillance-chat-drawer collapsed">
+                    <div class="chat-drawer-header" id="chat-drawer-header">
+                        <div class="chat-drawer-title">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <span>LIVE CHAT SURVEILLANCE</span>
+                        </div>
+                        <button id="btn-clear-chat" class="btn-drawer-action" title="Clear Chat History">CLEAR</button>
+                    </div>
+                    <div class="chat-scroll-area" id="surveillance-chat-scroll">
+                        <ul class="surveillance-chat-list" id="surveillance-chat-list">
+                            <!-- Appended dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Server Command Terminal Drawer -->
+                <div id="surveillance-terminal-drawer" class="surveillance-terminal-drawer hidden">
+                    <div class="terminal-header">
+                        <div class="terminal-title">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="4 17 10 11 4 5"></polyline>
+                                <line x1="12" y1="19" x2="20" y2="19"></line>
+                            </svg>
+                            <span>TACTICAL SERVER TERMINAL</span>
+                        </div>
+                        <button id="btn-close-terminal" class="btn-drawer-action" title="Close Terminal">✕</button>
+                    </div>
+                    <div class="terminal-output" id="terminal-output-container">
+                        <div class="terminal-line system-line">[SYSTEM] A.T.L.A.S. Tactical Console ready. Type command and press Enter.</div>
+                        <div class="terminal-line system-line">[SYSTEM] Offline player targets are automatically queued in the Pending Action Ledger.</div>
+                    </div>
+                    <form id="terminal-form" class="terminal-input-bar">
+                        <span class="terminal-prefix">&gt;</span>
+                        <input type="text" id="terminal-input" placeholder="Execute console command (/gamemode, /weather, /give %player%...)" autocomplete="off" spellcheck="false">
+                        <button type="submit" id="btn-terminal-send" class="btn-term-run">EXECUTE</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Right Telemetry & Moderation Inspector -->
+            <aside class="atlas-inspector" id="inspector-panel">
+                <div class="inspector-empty" id="inspector-empty">
+                    <p>Select an online player marker or offline profile to inspect inventory, stats, and execute moderation actions.</p>
+                </div>
+
+                <div class="inspector-body hidden" id="inspector-body">
+                    <!-- Player Header -->
+                    <div class="inspector-header">
+                        <img id="insp-avatar" src="" alt="Player Face" class="player-face">
+                        <div class="insp-title">
+                            <h3 id="insp-name">Player</h3>
+                            <span id="insp-uuid" class="subtext">UUID</span>
+                        </div>
+                        <span id="insp-mode" class="badge">SURVIVAL</span>
+                    </div>
+
+                    <!-- Coordinates & Location Card -->
+                    <div class="location-banner" id="insp-location-box">
+                        <div class="loc-details">
+                            <span class="loc-badge" id="insp-loc-dim">OVERWORLD</span>
+                            <span class="loc-coords" id="insp-loc-coords">X: 0, Y: 64, Z: 0</span>
+                        </div>
+                        <button id="btn-insp-locate" class="btn-locate" data-tooltip="Center Map on Target" title="Center map on this position" aria-label="Center Map">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Gauges & Telemetry Stats -->
+                    <div class="stat-gauges">
+                        <div class="gauge">
+                            <div class="gauge-label">Health <span id="val-health">20/20</span></div>
+                            <div class="gauge-track"><div id="bar-health" class="gauge-fill fill-red" style="width: 100%"></div></div>
+                        </div>
+                        <div class="gauge">
+                            <div class="gauge-label">Food <span id="val-food">20/20</span></div>
+                            <div class="gauge-track"><div id="bar-food" class="gauge-fill fill-gold" style="width: 100%"></div></div>
+                        </div>
+                        <div class="gauge">
+                            <div class="gauge-label">Ping <span id="val-ping">0 ms</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Active Potion Effects -->
+                    <div class="section-container">
+                        <h4>Active Effects</h4>
+                        <div id="insp-effects" class="effects-list">
+                            <span class="text-muted">None</span>
+                        </div>
+                    </div>
+
+                    <!-- Equipment Rack -->
+                    <div class="section-container">
+                        <h4>Equipment</h4>
+                        <div class="equipment-rack">
+                            <div class="slot-box" id="slot-helmet" title="Helmet"></div>
+                            <div class="slot-box" id="slot-chestplate" title="Chestplate"></div>
+                            <div class="slot-box" id="slot-leggings" title="Leggings"></div>
+                            <div class="slot-box" id="slot-boots" title="Boots"></div>
+                            <div class="slot-box slot-weapon" id="slot-mainhand" title="Main Hand"></div>
+                            <div class="slot-box slot-offhand" id="slot-offhand" title="Off Hand"></div>
+                        </div>
+                    </div>
+
+                    <!-- 36-Slot Inventory Grid -->
+                    <div class="section-container">
+                        <h4>Inventory</h4>
+                        <div class="inventory-grid" id="inventory-slots">
+                            <!-- 36 items -->
+                        </div>
+                    </div>
+
+                    <!-- Remote Moderation Controls -->
+                    <div class="section-container">
+                        <h4>Remote Moderation</h4>
+                        <div class="mod-btn-grid">
+                            <button id="btn-mod-kick" class="btn-mod btn-warning" data-tooltip="Kick Player from Server" aria-label="Kick Player">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                    <polyline points="16 17 21 12 16 7"></polyline>
+                                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-ban" class="btn-mod btn-danger" data-tooltip="Ban Player from Server" aria-label="Ban Player">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-kill" class="btn-mod btn-danger" data-tooltip="Execute / Kill Player" aria-label="Kill Player">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-tp" class="btn-mod btn-primary" data-tooltip="Teleport To Player" aria-label="Teleport To Player">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                    <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+                                    <path d="M5.6 5.6l2.1 2.1m8.6 8.6l2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6l2.1-2.1"></path>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-clear" class="btn-mod btn-warning" data-tooltip="Clear Player Inventory" aria-label="Clear Inventory">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-spyglass" class="btn-mod btn-info" data-tooltip="Activate Audio Monitor on Player" aria-label="Audio Monitor">
+                                <svg class="spyglass-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 3l-6 6"/>
+                                    <path d="M21 7l-2-2"/>
+                                    <path d="M18 6l-6 6 2 2 6-6"/>
+                                    <path d="M13 11l-4 4 1.5 1.5 4-4"/>
+                                    <path d="M9.5 14.5l-3 3 1 1 3-3"/>
+                                    <path d="M7 17l-3.5 3.5a1 1 0 0 1-1.4-1.4L5.6 15.6"/>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-talk" class="btn-mod btn-broadcast" data-tooltip="Talk to Player (Two-Way Live Voice)" aria-label="Talk to Player">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                                </svg>
+                            </button>
+                            <button id="btn-mod-talk-area" class="btn-mod btn-voice" data-tooltip="Talk to Players in this Area (Radius 50m)" aria-label="Talk to Area">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <circle cx="12" cy="12" r="10" stroke-dasharray="2 2"></circle>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Embedded Player Command Dispatch -->
+                        <div class="player-cmd-box" id="player-cmd-container">
+                            <span class="cmd-box-title">PLAYER COMMAND DISPATCH</span>
+                            <div class="cmd-box-input-group">
+                                <input type="text" id="input-player-cmd" placeholder="e.g. give %player% diamond 1 or tp..." autocomplete="off">
+                                <button id="btn-player-cmd-exec" class="btn-sm btn-primary">RUN</button>
+                            </div>
+                            <span class="cmd-box-hint">Executes on console. If player is offline, queues into Pending Ledger.</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modals & Tooltips -->
+    <div id="item-tooltip" class="item-tooltip hidden">
+        <div id="tooltip-name" class="tooltip-title">Item Name</div>
+        <div id="tooltip-lore" class="tooltip-lore"></div>
+        <div id="tooltip-enchantments" class="tooltip-ench"></div>
+        <div id="tooltip-durability" class="tooltip-dur"></div>
+    </div>
+
+    <!-- Settings & Config Modal -->
+    <div id="settings-modal" class="atlas-modal-backdrop hidden">
+        <div class="atlas-modal">
+            <div class="modal-header">
+                <div class="modal-title-cluster">
+                    <span class="modal-badge">CONFIG</span>
+                    <h3>System Settings</h3>
+                </div>
+                <button id="btn-close-settings" class="btn-modal-close" title="Close (Esc)">✕</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab-btn active" data-modaltab="client">Client Display</button>
+                <button class="modal-tab-btn" data-modaltab="surveillance">Audio & Voice</button>
+                <button class="modal-tab-btn" data-modaltab="server">Server Config</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Tab: Client Display -->
+                <div class="modal-pane active" id="pane-setting-client">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-offline">Display Offline Players</label>
+                            <span class="setting-desc">Render offline player markers and last-known coordinates on the map</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-offline" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-labels">Player Name Labels</label>
+                            <span class="setting-desc">Display player name badges above avatars on the map</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-labels" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-cones">Heading Direction Cones</label>
+                            <span class="setting-desc">Render radar heading vision cones pointing in player view direction</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-cones" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-chat-overhead">Overhead Chat Speech Bubbles</label>
+                            <span class="setting-desc">Display live player chat messages directly above their pointer marker icon</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-chat-overhead" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-chat-duration">Chat Bubble Display Duration</label>
+                            <span class="setting-desc">Number of seconds speech bubbles remain visible above players</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-chat-duration" min="3" max="15" value="6" step="1">
+                            <span class="slider-val" id="val-chat-duration">6s</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-chat-feed">Live Chat Surveillance Drawer</label>
+                            <span class="setting-desc">Enable bottom surveillance chat feed drawer for logging server conversation</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-chat-feed" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-block-pulses">Live Block Change Pulses</label>
+                            <span class="setting-desc">Highlight newly placed or broken blocks with real-time HUD pulses</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-block-pulses" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Tab: Audio & Voice -->
+                <div class="modal-pane" id="pane-setting-surveillance">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-radar-scale">Voice Monitor Radar Scale</label>
+                            <span class="setting-desc">Adjust the visual display size of the Audio Monitor radar ring overlay</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-radar-scale" min="0.8" max="2.5" value="1.0" step="0.1">
+                            <span class="slider-val" id="val-radar-scale">1.0x</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-spyglass-radius">Audio Monitor Default Radius</label>
+                            <span class="setting-desc">In-game spatial audio interception radius in blocks (meters)</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-spyglass-radius" min="10" max="100" value="25" step="5">
+                            <span class="slider-val" id="val-spyglass-radius">25m</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-spyglass-volume">Audio Monitor Playback Volume</label>
+                            <span class="setting-desc">Output volume gain for intercepted spatial voice audio</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-spyglass-volume" min="0" max="100" value="80" step="5">
+                            <span class="slider-val" id="val-spyglass-volume">80%</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-voice-mic-gain">Voice Broadcast Mic Boost</label>
+                            <span class="setting-desc">Input pre-amp gain multiplier applied to your browser microphone</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-voice-mic-gain" min="0.5" max="3.0" value="1.0" step="0.1">
+                            <span class="slider-val" id="val-voice-mic-gain">1.0x</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-voice-tx-mode">Voice Transmission Mode</label>
+                            <span class="setting-desc">Push-to-Talk requires holding 'V'; Toggle stays open until clicked</span>
+                        </div>
+                        <select id="setting-voice-tx-mode" class="setting-select">
+                            <option value="hold">Push-to-Talk (Hold 'V')</option>
+                            <option value="toggle">Toggle Mode (Click to Start/Stop)</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-show-trails">Movement Breadcrumb Trails</label>
+                            <span class="setting-desc">Draw glowing tactical paths tracking recent player movements</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-show-trails" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-trail-length">Trail History Length</label>
+                            <span class="setting-desc">Number of waypoint points preserved per online player</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-trail-length" min="10" max="100" value="30" step="5">
+                            <span class="slider-val" id="val-trail-length">30 pts</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Server Config -->
+                <div class="modal-pane" id="pane-setting-server">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-telemetry-hz">Telemetry Broadcast Rate</label>
+                            <span class="setting-desc">Target dispatch frequency for player coordinates & health (Hz)</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-telemetry-hz" min="5" max="20" value="15" step="1">
+                            <span class="slider-val" id="val-telemetry-hz">15 Hz</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-render-unloaded">Render Unloaded Anvil Chunks</label>
+                            <span class="setting-desc">Parse terrain from .mca region files for areas without active players</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-render-unloaded" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label class="setting-title" for="setting-hillshading-intensity">Topographical Relief Intensity</label>
+                            <span class="setting-desc">Shading contrast applied to cliff edges and height deltas</span>
+                        </div>
+                        <div class="setting-control-slider">
+                            <input type="range" id="setting-hillshading-intensity" min="0.05" max="0.30" value="0.12" step="0.01">
+                            <span class="slider-val" id="val-hillshading-intensity">0.12</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="btn-reset-settings" class="btn-mod btn-warning">Reset Defaults</button>
+                <button id="btn-save-settings" class="btn-mod btn-primary">Save & Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Context & Protocol Modal -->
+    <div id="security-modal" class="atlas-modal-backdrop hidden">
+        <div class="atlas-modal" style="max-width: 580px;">
+            <div class="modal-header">
+                <div class="modal-title-cluster">
+                    <span class="modal-badge">SECURITY</span>
+                    <h3 class="modal-title">SURVEILLANCE SECURITY PROTOCOL</h3>
+                </div>
+                <button id="btn-close-security" class="btn-modal-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+                <div id="security-context-banner" style="padding: 12px 14px; border: 1px solid #232c3f; background: #0c1017; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+                    <div id="sec-banner-icon" style="font-size: 20px;">🛡️</div>
+                    <div>
+                        <div id="sec-banner-title" style="font-weight: 700; font-size: 14px; color: #f8fafc; letter-spacing: 0.5px;">CHECKING CONTEXT...</div>
+                        <div id="sec-banner-desc" style="font-size: 11px; color: #94a3b8;">Analyzing origin security and browser privileges.</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #f97316; margin: 0 0 6px 0;">Why does my browser show "Not Secure"?</h4>
+                    <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                        Web browsers (Chrome, Edge, Firefox) automatically display "Not secure" for any unencrypted HTTP connection made to an IP address because it lacks a registered commercial domain and third-party SSL certificate. 
+                        <strong>Your Minecraft server is NOT compromised or vulnerable.</strong>
+                    </p>
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #f97316; margin: 0 0 6px 0;">Active Built-in Defenses</h4>
+                    <ul style="margin: 0; padding-left: 18px; color: #94a3b8; font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+                        <li><strong style="color: #f1f5f9;">One-Time HMAC Auth:</strong> All HTTP and WebSocket operations require cryptographically random tokens with strict expiry.</li>
+                        <li><strong style="color: #f1f5f9;">Session Isolation:</strong> Virtual-threaded sandboxing with no disk or OS command execution.</li>
+                        <li><strong style="color: #f1f5f9;">Token-Bucket Rate Limiter:</strong> Automatically defends against brute-force port scanners and unauthorized requests.</li>
+                        <li><strong style="color: #f1f5f9;">Defensive Headers:</strong> <code>nosniff</code>, <code>SAMEORIGIN</code>, and <code>strict-origin-when-cross-origin</code> enforce browser sandbox protection.</li>
+                    </ul>
+                </div>
+
+                <div style="border-top: 1px solid #1e293b; padding-top: 14px;">
+                    <h4 style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8; margin: 0 0 6px 0;">How to Clear the Browser Warning Without Buying a Domain</h4>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #94a3b8;">
+                        <div>
+                            <span style="color: #f8fafc; font-weight: 600;">1. Host Machine (Zero Warnings):</span>
+                            Access via <code style="background: #1e293b; padding: 2px 6px; color: #38bdf8;">http://localhost:27994</code>. Browsers recognize <code>localhost</code> as an intrinsically trusted Secure Context.
+                        </div>
+                        <div>
+                            <span style="color: #f8fafc; font-weight: 600;">2. Remote LAN Access (Chrome/Edge):</span>
+                            Visit <code style="background: #1e293b; padding: 2px 6px; color: #38bdf8;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add this server's IP address, and click Relaunch. This permanently removes the warning for this dashboard on that browser.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid #232c3f; display: flex; justify-content: flex-end; background: #0b0f17;">
+                <button id="btn-dismiss-security" class="btn-cancel" style="padding: 6px 16px;">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/leaflet.js?v=1.0.5"></script>
+    <script src="/js/ws-client.js?v=1.0.5"></script>
+    <script src="/js/map-engine.js?v=1.0.5"></script>
+    <script src="/js/telemetry-renderer.js?v=1.0.5"></script>
+    <script src="/js/player-inspector.js?v=1.0.5"></script>
+    <script src="/js/offline-manager.js?v=1.0.5"></script>
+    <script src="/js/spyglass-radar.js?v=1.0.5"></script>
+    <script src="/js/audio/voice-transmitter.js?v=1.0.5"></script>
+    <script src="/js/app.js?v=1.0.5"></script>
+</body>
+</html>
